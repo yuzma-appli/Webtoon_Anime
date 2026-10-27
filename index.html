@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#11141c"><title>TBATE · Lecteur</title>
-<style>*{box-sizing:border-box}body{margin:0;background:#11141c;color:#f4f5fa;font:16px system-ui}header{max-width:760px;margin:auto;padding:36px 20px 24px}small{color:#b9c2d5}h1{font-size:clamp(26px,6vw,42px);line-height:1.15;margin:14px 0}button,a.action{font:inherit;border:0;border-radius:14px;padding:14px 20px;background:#b6c8ff;color:#15213e;cursor:pointer;display:inline-block;text-decoration:none}button:disabled{opacity:.5}#status{line-height:1.6;color:#c4cde0}#reader{max-width:760px;margin:auto}figure{margin:0;position:relative}figure img{display:block;width:100%;height:auto;min-height:90px;background:#1c2230}figcaption{font-size:12px;color:#a5b0c5;text-align:center;padding:8px}figure p{padding:16px}footer{max-width:760px;margin:auto;padding:30px 20px 70px;line-height:1.6}a{color:#b6c8ff}.error{color:#ffc4bb!important}[hidden]{display:none!important}</style></head><body>
-<header><small>LECTEUR · TEST EN LIGNE</small><h1>The Beginning<br>After the End</h1><p>Chapitre 192 · Français</p><button id="open">Lire le chapitre 192</button><p id="status" role="status">Les images seront récupérées à l’ouverture du chapitre.</p><a href="./diagnostic.html">Diagnostic initial</a></header><main id="reader" aria-label="Pages du chapitre"></main><footer><p id="end" hidden>Fin du chapitre 192.</p><a href="https://www.lelscanfr.com/manga/the-beginning-after-the-end/192" target="_blank" rel="noopener noreferrer">Ouvrir la source</a><p><small>Version de test : lecture en ligne. Le téléchargement hors connexion et la synchronisation ne sont pas encore disponibles.</small></p></footer>
+<style>*{box-sizing:border-box}body{margin:0;background:#11141c;color:#f4f5fa;font:16px system-ui}header{max-width:760px;margin:auto;padding:36px 20px 24px}small{color:#b9c2d5}h1{font-size:clamp(26px,6vw,42px);line-height:1.15;margin:14px 0}button,a.action{font:inherit;border:0;border-radius:14px;padding:14px 20px;background:#b6c8ff;color:#15213e;cursor:pointer;display:inline-block;text-decoration:none}button:disabled{opacity:.5}#status{line-height:1.6;color:#c4cde0}#reader{max-width:760px;margin:auto}figure{margin:0;padding:0;position:relative;line-height:0}figure img{display:block;width:100%;height:auto;min-height:90px;background:#1c2230}figure p{padding:16px;line-height:1.5}footer{max-width:760px;margin:auto;padding:30px 20px 70px;line-height:1.6}a{color:#b6c8ff}.error{color:#ffc4bb!important}[hidden]{display:none!important}</style></head><body>
+<header><small>LECTEUR · TEST EN LIGNE</small><h1>The Beginning<br>After the End</h1><p>Chapitre 192 · Français</p><button id="resume" hidden>Reprendre ma lecture</button> <button id="open">Lire le chapitre 192</button><p id="progress" aria-live="polite"></p><p id="status" role="status">Les images seront récupérées à l’ouverture du chapitre.</p><a href="./diagnostic.html">Diagnostic initial</a></header><main id="reader" aria-label="Pages du chapitre"></main><footer><p id="end" hidden>Fin du chapitre 192.</p><a href="https://www.lelscanfr.com/manga/the-beginning-after-the-end/192" target="_blank" rel="noopener noreferrer">Ouvrir la source</a><p><small>Version de test : lecture en ligne. La position est mémorisée sur cet appareil. Le hors connexion et la synchronisation restent à venir.</small></p></footer>
 <script>
 const API='https://webtoontest.tjydsccwkb.workers.dev/chapter/192';
 const button=document.querySelector('#open'),status=document.querySelector('#status'),reader=document.querySelector('#reader');
@@ -22,10 +22,71 @@ async function readChapterResponse(response) {
   return data;
 }
 
-button.onclick=async()=>{button.disabled=true;status.classList.remove('error');status.textContent='Récupération du chapitre…';const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),22000);try{
-const r=await fetch(API,{credentials:'omit',signal:controller.signal});const data=await readChapterResponse(r);if(data.version!==2||!Array.isArray(data.pages)||!data.pages.length||data.pages.length>150)throw new Error('Le Worker doit être mis à jour avec le nouveau code.');
-const urls=data.pages.map(src=>{const u=new URL(src);if(u.origin!=='https://www.lelscanfr.com'||!u.pathname.startsWith('/storage/content/the-beginning-after-the-end/192/')||u.search||u.hash)throw new Error('Adresse image inattendue');return u.href});
-reader.replaceChildren();loaded=new Set();failed=new Set();total=urls.length;document.querySelector('#end').hidden=true;update();
-urls.forEach((src,i)=>{const figure=document.createElement('figure'),img=document.createElement('img'),caption=document.createElement('figcaption'),error=document.createElement('p'),retry=document.createElement('button');img.alt='Page '+(i+1)+' du chapitre 192';img.loading=i<2?'eager':'lazy';img.decoding='async';caption.textContent='Page '+(i+1)+' / '+total;error.hidden=true;error.append('Image indisponible. ');retry.textContent='Réessayer';error.append(retry);img.onload=()=>{loaded.add(i);failed.delete(i);error.hidden=true;update()};img.onerror=()=>{loaded.delete(i);failed.add(i);error.hidden=false;update()};retry.onclick=()=>{error.hidden=true;failed.delete(i);img.removeAttribute('src');img.src=src;update()};figure.append(img,error,caption);reader.append(figure);img.src=src});button.textContent='Recharger le chapitre';
-}catch(e){status.textContent='Impossible de charger le chapitre : '+(e.name==='AbortError'?'délai dépassé':e.message);status.classList.add('error')}finally{clearTimeout(timer);button.disabled=false}};
+const resumeButton=document.querySelector('#resume'),progress=document.querySelector('#progress');
+const STORAGE_KEY='lecteur:tbate:192:v1';
+let tracking=false,images=[],saveTimer;
+function readProgress(){
+  try { const p=JSON.parse(localStorage.getItem(STORAGE_KEY));
+    return p && p.chapter===192 && Number.isInteger(p.page) && p.page>=0 && p.page<150 && Number.isFinite(p.fraction) && p.fraction>=0 && p.fraction<=1 ? p : null;
+  } catch { return null; }
+}
+let saved=readProgress();
+function showProgress(){
+  resumeButton.hidden=!saved;
+  button.textContent=saved?'Lire depuis le début':'Lire le chapitre 192';
+  progress.textContent=saved?'Position mémorisée · page '+(saved.page+1):'';
+}
+showProgress();
+function savePosition(){
+  if(!tracking || !images.length) return;
+  let index=images.findIndex(img=>img.getBoundingClientRect().bottom>0);
+  if(index<0) index=images.length-1;
+  const img=images[index],rect=img.getBoundingClientRect();
+  if(!img.naturalWidth || rect.top>innerHeight || rect.height<=0) return;
+  const p={chapter:192,page:index,fraction:Math.max(0,Math.min(1,-rect.top/rect.height)),image:img.src};
+  try { localStorage.setItem(STORAGE_KEY,JSON.stringify(p)); saved=p; showProgress(); }
+  catch { progress.textContent='La sauvegarde sur cet appareil est indisponible.'; }
+}
+addEventListener('scroll',()=>{clearTimeout(saveTimer);saveTimer=setTimeout(savePosition,350)},{passive:true});
+addEventListener('pagehide',savePosition);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)savePosition()});
+async function openChapter(position){
+  tracking=false;button.disabled=true;resumeButton.disabled=true;
+  status.classList.remove('error');status.textContent='Récupération du chapitre…';
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),22000);
+  try {
+    const r=await fetch(API,{credentials:'omit',signal:controller.signal});
+    const data=await readChapterResponse(r);
+    if(data.version!==2||!Array.isArray(data.pages)||!data.pages.length||data.pages.length>150)throw new Error('Le Worker doit être mis à jour avec le nouveau code.');
+    const urls=data.pages.map(src=>{const u=new URL(src);if(u.origin!=='https://www.lelscanfr.com'||!u.pathname.startsWith('/storage/content/the-beginning-after-the-end/192/')||u.search||u.hash)throw new Error('Adresse image inattendue');return u.href});
+    reader.replaceChildren();images=[];loaded=new Set();failed=new Set();total=urls.length;document.querySelector('#end').hidden=true;update();
+    const pending=urls.map((src,i)=>new Promise(resolve=>{
+      const figure=document.createElement('figure'),img=document.createElement('img'),error=document.createElement('p'),retry=document.createElement('button');
+      img.alt='Page '+(i+1)+' du chapitre 192';img.loading='eager';img.decoding='async';
+      error.hidden=true;error.append('Image indisponible. ');retry.textContent='Réessayer';error.append(retry);
+      const timeout=setTimeout(()=>{failed.add(i);error.hidden=false;update();resolve()},20000);
+      img.onload=()=>{clearTimeout(timeout);loaded.add(i);failed.delete(i);error.hidden=true;update();resolve()};
+      img.onerror=()=>{clearTimeout(timeout);loaded.delete(i);failed.add(i);error.hidden=false;update();resolve()};
+      retry.onclick=()=>{error.hidden=true;failed.delete(i);img.removeAttribute('src');img.src=src;update()};
+      figure.append(img,error);reader.append(figure);images.push(img);img.src=src;
+    }));
+    await Promise.all(pending);
+    const index=position?Math.min(position.page,images.length-1):0;
+    if(images.slice(0,index+1).some(img=>!img.naturalWidth)){
+      status.textContent='Certaines images manquent. Réessaie leur chargement avant de reprendre ta position.';
+      return;
+    }
+    const target=images[index];
+    const fraction=position && (!position.image || position.image===target.src)?position.fraction:0;
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+    window.scrollTo(0,scrollY+target.getBoundingClientRect().top+target.getBoundingClientRect().height*fraction);
+    await new Promise(resolve=>requestAnimationFrame(resolve));
+    tracking=true;
+    savePosition();
+  } catch(e){
+    status.textContent='Impossible de charger le chapitre : '+(e.name==='AbortError'?'délai dépassé':e.message);status.classList.add('error');
+  } finally {clearTimeout(timer);button.disabled=false;resumeButton.disabled=false}
+}
+button.onclick=()=>openChapter(null);
+resumeButton.onclick=()=>openChapter(saved);
 </script></body></html>
