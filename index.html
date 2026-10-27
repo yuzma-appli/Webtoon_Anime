@@ -7,8 +7,23 @@ const API='https://webtoontest.tjydsccwkb.workers.dev/chapter/192';
 const button=document.querySelector('#open'),status=document.querySelector('#status'),reader=document.querySelector('#reader');
 let total=0,loaded=new Set(),failed=new Set();
 function update(){status.textContent=loaded.size+' / '+total+' images chargées'+(failed.size?' · '+failed.size+' en échec':'')+'.';status.classList.toggle('error',failed.size>0);document.querySelector('#end').hidden=loaded.size!==total||total===0}
+async function readChapterResponse(response) {
+  const text = await response.text();
+  const isHTML = /^\s*(?:<!--[^]*?-->\s*)*</.test(text);
+  if (isHTML || !(response.headers.get('content-type') || '').toLowerCase().includes('application/json')) {
+    const workFilter = /zscaler|schneider|block list global|vous n.?êtes pas autorisé/i.test(text);
+    throw new Error(workFilter
+      ? 'Accès bloqué par le filtre de ton entreprise. Utilise ton appareil personnel sur un réseau personnel.'
+      : 'Le service a renvoyé une page web au lieu des données attendues (HTTP ' + response.status + '). Cela peut venir d’un filtre réseau ou d’une erreur du service. Teste sur ton appareil personnel avec un réseau personnel.');
+  }
+  let data;
+  try { data = JSON.parse(text); } catch { throw new Error('Le service a renvoyé des données JSON invalides.'); }
+  if (!response.ok) throw new Error(data.erreur || 'Erreur du service : HTTP ' + response.status);
+  return data;
+}
+
 button.onclick=async()=>{button.disabled=true;status.classList.remove('error');status.textContent='Récupération du chapitre…';const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),22000);try{
-const r=await fetch(API,{credentials:'omit',signal:controller.signal});const data=await r.json();if(!r.ok)throw new Error(data.erreur||'HTTP '+r.status);if(data.version!==2||!Array.isArray(data.pages)||!data.pages.length||data.pages.length>150)throw new Error('Le Worker doit être mis à jour avec le nouveau code.');
+const r=await fetch(API,{credentials:'omit',signal:controller.signal});const data=await readChapterResponse(r);if(data.version!==2||!Array.isArray(data.pages)||!data.pages.length||data.pages.length>150)throw new Error('Le Worker doit être mis à jour avec le nouveau code.');
 const urls=data.pages.map(src=>{const u=new URL(src);if(u.origin!=='https://www.lelscanfr.com'||!u.pathname.startsWith('/storage/content/the-beginning-after-the-end/192/')||u.search||u.hash)throw new Error('Adresse image inattendue');return u.href});
 reader.replaceChildren();loaded=new Set();failed=new Set();total=urls.length;document.querySelector('#end').hidden=true;update();
 urls.forEach((src,i)=>{const figure=document.createElement('figure'),img=document.createElement('img'),caption=document.createElement('figcaption'),error=document.createElement('p'),retry=document.createElement('button');img.alt='Page '+(i+1)+' du chapitre 192';img.loading=i<2?'eager':'lazy';img.decoding='async';caption.textContent='Page '+(i+1)+' / '+total;error.hidden=true;error.append('Image indisponible. ');retry.textContent='Réessayer';error.append(retry);img.onload=()=>{loaded.add(i);failed.delete(i);error.hidden=true;update()};img.onerror=()=>{loaded.delete(i);failed.add(i);error.hidden=false;update()};retry.onclick=()=>{error.hidden=true;failed.delete(i);img.removeAttribute('src');img.src=src;update()};figure.append(img,error,caption);reader.append(figure);img.src=src});button.textContent='Recharger le chapitre';
