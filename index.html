@@ -57,14 +57,14 @@ $('back').onclick=back;$('list-bottom').onclick=back;for(const id of ['prev','pr
  const entrance=document.getElementById('entrance'),button=document.getElementById('seal-button');
  const traces=[...entrance.querySelectorAll('.seal-trace')].map(path=>({path,start:Number(path.dataset.start),end:Number(path.dataset.end)}));
  const reduced=matchMedia('(prefers-reduced-motion: reduce)');
- let value=0,held=false,opening=false,frame=0,lastTime=0,activePointer=null;
+ let value=0,held=false,opening=false,frame=0,lastTime=0,holdStart=0,holdValue=0,activePointer=null;
  function paint(){for(const {path,start,end}of traces){const p=Math.max(0,Math.min(1,(value-start)/(end-start)));path.style.strokeDashoffset=String(1-p);}entrance.style.setProperty('--power',String(Math.max(0,(value-.18)/.82)));}
  function reveal(){if(opening)return;opening=true;held=false;cancelAnimationFrame(frame);value=1;paint();entrance.classList.remove('pressing');entrance.classList.add('opening');document.getElementById('entrance-status').textContent='Bienvenue dans ScanSama';
   setTimeout(()=>{document.getElementById('library').inert=false;document.getElementById('library-footer').inert=false;document.body.classList.remove('gated');entrance.classList.add('dismissed');document.querySelector('.brand').setAttribute('tabindex','-1');document.querySelector('.brand').focus({preventScroll:true});setTimeout(()=>{entrance.hidden=true;},reduced.matches?150:800);},reduced.matches?0:420);
  }
- function tick(time){if(opening)return;const dt=Math.max(0,time-lastTime||16);lastTime=time;value=Math.max(0,Math.min(1,value+(held?dt/1800:-dt/600)));paint();if(value>=1){reveal();return;}if(held||value>0)frame=requestAnimationFrame(tick);else frame=0;}
- function start(){if(opening||held)return;held=true;entrance.classList.add('pressing');cancelAnimationFrame(frame);lastTime=performance.now();frame=requestAnimationFrame(tick);}
- function release(){if(opening)return;held=false;entrance.classList.remove('pressing');if(!frame&&value>0){lastTime=performance.now();frame=requestAnimationFrame(tick);}}
+ function tick(time){if(opening)return;const dt=Math.max(0,time-lastTime||16);lastTime=time;value=Math.max(0,Math.min(1,held?holdValue+(time-holdStart)/1800:value-dt/600));paint();if(value>=1){reveal();return;}if(held||value>0)frame=requestAnimationFrame(tick);else frame=0;}
+ function start(){if(opening||held)return;held=true;holdStart=performance.now();holdValue=value;entrance.classList.add('pressing');cancelAnimationFrame(frame);lastTime=performance.now();frame=requestAnimationFrame(tick);}
+ function release(){if(opening)return;if(held){value=Math.min(1,holdValue+(performance.now()-holdStart)/1800);paint();if(value>=1){reveal();return;}}held=false;lastTime=performance.now();entrance.classList.remove('pressing');if(!frame&&value>0){lastTime=performance.now();frame=requestAnimationFrame(tick);}}
  button.addEventListener('pointerdown',e=>{if(e.button!==0||activePointer!==null)return;e.preventDefault();activePointer=e.pointerId;button.setPointerCapture(e.pointerId);start();});
  function endPointer(e){if(e.pointerId!==activePointer)return;activePointer=null;release();}
  button.addEventListener('pointerup',endPointer);button.addEventListener('pointercancel',endPointer);button.addEventListener('lostpointercapture',endPointer);
