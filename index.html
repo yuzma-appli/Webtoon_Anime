@@ -140,15 +140,15 @@ let progressFrame=0;
 addEventListener('scroll',()=>{if(currentView!=='reader'||progressFrame)return;progressFrame=requestAnimationFrame(()=>{progressFrame=0;const i=images.findIndex(img=>img.getBoundingClientRect().bottom>0);$('reading-progress').textContent=images.length?(i<0?images.length:i+1)+' / '+images.length:'';});},{passive:true});
 // Explicit, time-based auto scrolling; fractional position avoids low-speed rounding stalls.
 const AUTO_SPEEDS=[12,24,40,60,85],AUTO_SPEED_KEY='scansama:auto-speed:v1';
-let autoRunning=false,autoFrame=0,autoTime=0,autoY=0,autoLevel=2,autoWake=null,autoSession=0;
+let autoRunning=false,autoFrame=0,autoTime=0,autoY=0,autoExpectedY=0,autoLevel=2,autoWake=null,autoSession=0;
 try{const v=Number(localStorage.getItem(AUTO_SPEED_KEY));if(Number.isInteger(v)&&v>=1&&v<=5)autoLevel=v;}catch{}
 function paintAutoSpeed(){const speed=AUTO_SPEEDS[autoLevel-1];$('auto-speed').value=String(autoLevel);$('auto-speed').setAttribute('aria-valuetext','Vitesse '+autoLevel+' sur 5');$('auto-speed-value').value='Vitesse '+autoLevel;$('auto-speed').style.setProperty('--range-fill',((autoLevel-1)*25)+'%');}
 function autoReady(){return currentView==='reader'&&images.length>0&&loaded.size===images.length&&failed.size===0;}
 function updateAutoAvailability(){const ready=autoReady();$('auto-toggle').disabled=!ready;if(!ready){if(autoRunning)stopAutoScroll();$('auto-status').textContent='Disponible après le chargement des pages.';}else if(!autoRunning)$('auto-status').textContent='Un geste sur la page met en pause.';}
 function stopAutoScroll(message){const wasRunning=autoRunning;autoRunning=false;++autoSession;cancelAnimationFrame(autoFrame);autoFrame=0;autoTime=0;$('auto-toggle').textContent='Démarrer';$('auto-quick-pause').hidden=true;$('reading-dock').classList.remove('auto-running');if(wasRunning||message)$('auto-status').textContent=message||'En pause';const lock=autoWake;autoWake=null;if(lock)Promise.resolve(lock.release()).catch(()=>{});}
 function autoLimit(){const last=images[images.length-1];return last?Math.max(0,Math.min(document.documentElement.scrollHeight-innerHeight,scrollY+last.getBoundingClientRect().bottom-innerHeight)):0;}
-function autoTick(time){if(!autoRunning)return;if(currentView!=='reader'||document.hidden||!autoReady()){stopAutoScroll();return;}const dt=autoTime?Math.min(64,Math.max(0,time-autoTime)):0;autoTime=time;const limit=autoLimit();if(scrollY>=limit-1){stopAutoScroll('Fin du chapitre');return;}autoY=Math.min(limit,autoY+AUTO_SPEEDS[autoLevel-1]*dt/1000);window.scrollTo({top:autoY,behavior:'instant'});autoFrame=requestAnimationFrame(autoTick);}
-async function startAutoScroll(){if(!autoReady())return;if(scrollY>=autoLimit()-1){stopAutoScroll('Fin du chapitre · remonte pour relire.');return;}autoRunning=true;readerTouched=true;autoY=scrollY;autoTime=0;const session=++autoSession;$('auto-toggle').textContent='Pause';$('auto-quick-pause').hidden=false;$('reading-dock').classList.add('auto-running');$('auto-status').textContent='Défilement en cours';closeReadingControls();autoFrame=requestAnimationFrame(autoTick);
+function autoTick(time){if(!autoRunning)return;if(currentView!=='reader'||document.hidden||!autoReady()){stopAutoScroll();return;}if(Math.abs(scrollY-autoExpectedY)>3){stopAutoScroll();return;}const dt=autoTime?Math.min(64,Math.max(0,time-autoTime)):0;autoTime=time;const limit=autoLimit();if(scrollY>=limit-1){stopAutoScroll('Fin du chapitre');return;}autoY=Math.min(limit,autoY+AUTO_SPEEDS[autoLevel-1]*dt/1000);window.scrollTo({top:autoY,behavior:'instant'});autoExpectedY=scrollY;autoFrame=requestAnimationFrame(autoTick);}
+async function startAutoScroll(){if(!autoReady())return;if(scrollY>=autoLimit()-1){stopAutoScroll('Fin du chapitre · remonte pour relire.');return;}autoRunning=true;readerTouched=true;autoY=scrollY;autoExpectedY=scrollY;autoTime=0;const session=++autoSession;$('auto-toggle').textContent='Pause';$('auto-quick-pause').hidden=false;$('reading-dock').classList.add('auto-running');$('auto-status').textContent='Défilement en cours';closeReadingControls();autoFrame=requestAnimationFrame(autoTick);
  // Best effort only: unsupported or denied wake locks never block reading.
  try{if(navigator.wakeLock?.request){const lock=await navigator.wakeLock.request('screen');if(!autoRunning||session!==autoSession)await lock.release();else autoWake=lock;}}catch{}
 }
@@ -158,7 +158,7 @@ $('auto-speed').oninput=()=>{autoLevel=Number($('auto-speed').value);paintAutoSp
 document.addEventListener('pointerdown',e=>{if(autoRunning&&!isReadingControl(e.target))stopAutoScroll();},{passive:true});
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopAutoScroll();});
 addEventListener('pagehide',()=>stopAutoScroll());
-addEventListener('resize',()=>{if(autoRunning){autoY=scrollY;autoTime=0;}});
+addEventListener('resize',()=>{if(autoRunning){autoY=scrollY;autoExpectedY=scrollY;autoTime=0;}});
 paintAutoSpeed();
 if(!location.hash)history.replaceState(null,'','#home');route();loadDiscover();
 
