@@ -139,7 +139,7 @@ addEventListener('keydown',e=>{if(e.key==='Escape')closeReadingControls();});
 let progressFrame=0;
 addEventListener('scroll',()=>{if(currentView!=='reader'||progressFrame)return;progressFrame=requestAnimationFrame(()=>{progressFrame=0;const i=images.findIndex(img=>img.getBoundingClientRect().bottom>0);$('reading-progress').textContent=images.length?(i<0?images.length:i+1)+' / '+images.length:'';});},{passive:true});
 // Explicit, time-based auto scrolling; fractional position avoids low-speed rounding stalls.
-const AUTO_SPEEDS=[12,24,40,60,85],AUTO_SPEED_KEY='scansama:auto-speed:v1';
+const AUTO_SPEEDS=[12,40,85,150,240],AUTO_SPEED_KEY='scansama:auto-speed:v1';
 let autoRunning=false,autoFrame=0,autoTime=0,autoY=0,autoExpectedY=0,autoLevel=2,autoWake=null,autoSession=0;
 try{const v=Number(localStorage.getItem(AUTO_SPEED_KEY));if(Number.isInteger(v)&&v>=1&&v<=5)autoLevel=v;}catch{}
 function paintAutoSpeed(){const speed=AUTO_SPEEDS[autoLevel-1];$('auto-speed').value=String(autoLevel);$('auto-speed').setAttribute('aria-valuetext','Vitesse '+autoLevel+' sur 5');$('auto-speed-value').value='Vitesse '+autoLevel;$('auto-speed').style.setProperty('--range-fill',((autoLevel-1)*25)+'%');}
